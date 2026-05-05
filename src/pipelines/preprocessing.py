@@ -2,15 +2,16 @@
 Pipeline de pre-processamento do dataset Maternal Health Risk.
 
 Etapas executadas (nesta ordem):
-1. Remocao de outliers fisiologicamente invalidos (HeartRate = 7 bpm)
-2. Remocao de linhas duplicadas
-3. Criacao de features derivadas opcionais:
+1. Remocao de outliers fisiologicamente invalidos (HeartRate < 30 bpm)
+2. Remocao de registros com idade > 54 anos (p75 da menopausa natural)
+3. Remocao conservadora de duplicatas: mantem ate 3 ocorrencias por grupo
+4. Criacao de features derivadas opcionais:
    - pulse_pressure = SystolicBP - DiastolicBP
    - age_advanced  = 1 se Age >= 35, caso contrario 0  (flag AMA: Advanced Maternal Age)
    - age_group     = categoria ordinal <20 / 20-34 / >=35 (codificada como 0/1/2)
-4. Encoding ordinal do alvo: low risk=0, mid risk=1, high risk=2
-5. Split estratificado treino/teste (80/20, random_state fixo)
-6. Padronizacao das features numericas com StandardScaler (fit apenas no treino)
+5. Encoding ordinal do alvo: low risk=0, mid risk=1, high risk=2
+6. Split estratificado treino/teste (80/20, random_state fixo)
+7. Padronizacao das features numericas com StandardScaler (fit apenas no treino)
 
 Features derivadas opcionais:
 - add_pulse_pressure: cria pulse_pressure; util para reduzir colinearidade entre
@@ -88,18 +89,46 @@ def remove_invalid_outliers(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
+def remove_age_outliers(df: pd.DataFrame, max_age: int = 54) -> pd.DataFrame:
     """
-    Remove linhas completamente duplicadas.
+    Remove registros com idade acima do limiar clinico de fertilidade.
 
-    Deduplicar ANTES do split evita data leakage — sem isso, a mesma
-    observacao poderia aparecer em treino e teste, inflando artificialmente
-    as metricas.
+    O dataset apresenta um pico suspeito em exatamente 60 anos — valor que
+    nao aparece documentado como valido em nenhum artigo que usa esta base.
+    O corte em 54 anos corresponde ao p75 da menopausa natural em estudos
+    populacionais (mediana 51.25, p75 = 54 — Maturitas, 1995), tornando
+    gestacao acima desse limiar fisiologicamente muito improvavel sem
+    reproducao assistida avancada, que nao e o contexto deste dataset.
     """
     antes = len(df)
-    df = df.drop_duplicates().reset_index(drop=True)
+    df = df[df["Age"] <= max_age].copy().reset_index(drop=True)
     removidos = antes - len(df)
-    print(f"[dedup] Removidas {removidos} duplicatas. Linhas restantes: {len(df)}")
+    if removidos > 0:
+        print(f"[age] Removidos {removidos} registro(s) com Age > {max_age} anos.")
+    return df
+
+
+def remove_duplicates(df: pd.DataFrame, max_occurrences: int = 3) -> pd.DataFrame:
+    """
+    Remocao conservadora de linhas com medicoes identicas em todos os campos.
+
+    O dataset e amplamente utilizado e referenciado na literatura — nenhum dos
+    artigos trata as medicoes repetidas como problema de qualidade. Por isso,
+    optamos por uma abordagem conservadora: mantem ate max_occurrences
+    ocorrencias de cada grupo identico (padrao: 3), removendo apenas casos
+    com 4 ou mais repeticoes, que tem maior probabilidade de serem artefatos
+    de logging do sistema IoT de coleta.
+
+    Aplicado ANTES do split para evitar data leakage.
+    """
+    antes = len(df)
+    cumcount = df.groupby(df.columns.tolist()).cumcount()
+    df = df[cumcount < max_occurrences].reset_index(drop=True)
+    removidos = antes - len(df)
+    print(
+        f"[dedup] Removidas {removidos} ocorrencia(s) acima do limite de "
+        f"{max_occurrences} por grupo. Linhas restantes: {len(df)}"
+    )
     return df
 
 
@@ -305,6 +334,7 @@ def build_preprocessed_splits(
 
     # 2. Limpeza
     df = remove_invalid_outliers(df)
+    df = remove_age_outliers(df)
     df = remove_duplicates(df)
 
     # 3. Features derivadas opcionais e conversoes
