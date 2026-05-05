@@ -1,0 +1,64 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Modelos treinados (podem ser grandes)
+*.pkl
+*.joblib
+*.h5
+models/saved/
+
+# Dataset processado (mantém só o raw versionado se for pequeno)
+data/processed/*
+!data/processed/.gitkeep
+
+# Logs e relatórios temporários
+*.log
+reports/figures/*.tmp.*
+
+# Coverage / testes
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Exports temporarios de notebooks
+reports/*.zip
+reports/*.html
+reports/*_export/
+reports/*_export2/
