@@ -99,7 +99,7 @@ Selecione o kernel **Tech Challenge (venv)** nos notebooks e execute na ordem:
 
 ```bash
 docker build -t tech-challenge-fiap .
-docker run -p 8888:8888 -v $(pwd):/app tech-challenge-fiap
+docker run -p 8888:8888 -v "$(pwd):/app" tech-challenge-fiap
 ```
 
 Acesse `http://localhost:8888` e abra os notebooks em `notebooks/`.
