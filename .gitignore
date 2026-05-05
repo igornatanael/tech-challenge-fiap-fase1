@@ -64,3 +64,6 @@ reports/*_export/
 reports/*_export2/
 reports/roteiro_video.md
 reports/roteiro_video.md
+data/processed/
+instrucoes-e-plano.md
+setup_git.sh
