@@ -18,7 +18,49 @@ O modelo proposto atua exclusivamente como **suporte à decisão clínica**. O p
 
 ---
 
-## 2. Análise Exploratória de Dados (EDA)
+## 2. Dataset
+
+### 2.1 Origem e contexto
+
+O **Maternal Health Risk Data Set** (UCI ML Repository, ID 863) foi criado por Marzia Ahmed e Mohammod Kashem e publicado originalmente no artigo *"IoT Based Risk Level Prediction Model For Maternal Health Care In The Context Of Bangladesh"* (IEEE ICCIT, 2020). Os dados foram coletados entre 2018 e 2020 em hospitais, clínicas comunitárias e unidades de saúde materna em áreas rurais de Bangladesh, utilizando um sistema de monitoramento baseado em dispositivos IoT.
+
+O contexto de coleta é central para interpretar o dataset: Bangladesh é um país de renda média-baixa com disparidades significativas no acesso à saúde especializada em regiões rurais. O sistema proposto pelos autores visa justamente suprir essa lacuna — triagem precoce de risco gestacional com sinais vitais coletáveis por qualquer agente de saúde, sem necessidade de exames laboratoriais complexos.
+
+### 2.2 Características do dataset
+
+O dataset original contém **1.014 registros × 7 colunas**:
+
+| Atributo | Tipo | Descrição | Unidade |
+|---|---|---|---|
+| `Age` | Inteiro | Idade da paciente | anos |
+| `SystolicBP` | Inteiro | Pressão arterial sistólica | mmHg |
+| `DiastolicBP` | Inteiro | Pressão arterial diastólica | mmHg |
+| `BS` | Contínuo | Glicemia (*Blood Sugar*) | mmol/L |
+| `BodyTemp` | Contínuo | Temperatura corporal | °F |
+| `HeartRate` | Inteiro | Frequência cardíaca | bpm |
+| `RiskLevel` | Categórico | **Alvo** — nível de risco gestacional | low / mid / high risk |
+
+Não há valores ausentes. O alvo é balanceado de forma moderada: aproximadamente 40% `low risk`, 33% `mid risk` e 27% `high risk`.
+
+### 2.3 Uso acadêmico e relevância
+
+O dataset é amplamente adotado pela comunidade científica. Artigos publicados em veículos de alto impacto o utilizam como benchmark para métodos de classificação em saúde materna:
+
+- **IEEE** (conferência de origem) — Ahmed & Kashem, 2020
+- **PLOS ONE** — ensemble learning com feature engineering para predição de risco gestacional
+- **Nature Scientific Reports** — framework de ensemble machine learning para risco na gravidez
+- **Frontiers in Artificial Intelligence** — modelo híbrido ANN + Random Forest
+- **PMC / BioMed Central** — análise com PCA e TreeNet
+
+Nenhum desses trabalhos documenta as medições repetidas como problema de qualidade, o que sustenta a abordagem conservadora adotada neste projeto (manter até 3 ocorrências por grupo, detalhada na Seção 3).
+
+### 2.4 Justificativa de escolha
+
+A seleção deste dataset foi motivada por quatro fatores: (1) **alinhamento direto com o problema proposto** — classificação de risco gestacional é exatamente o contexto do Tech Challenge; (2) **variáveis clinicamente significativas** — os 6 sinais vitais são coletáveis em qualquer posto de saúde, tornando o sistema viável em cenários de recursos limitados; (3) **disponibilidade pública documentada** na UCI com referência à publicação original; e (4) **uso consolidado na academia**, o que permite comparação com benchmarks existentes e valida a relevância do problema.
+
+---
+
+## 3. Análise Exploratória de Dados (EDA)
 
 ### 2.1 Visão geral
 
