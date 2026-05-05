@@ -29,7 +29,7 @@ Link: https://archive.ics.uci.edu/dataset/863/maternal+health+risk
 
 - **Origem:** dados coletados em hospitais e clínicas comunitárias rurais de Bangladesh via dispositivos IoT
 - **Volume original:** 1.014 registros × 7 colunas (6 features + alvo)
-- **Após limpeza:** 451 registros únicos (remoção de 2 outliers e 561 duplicatas)
+- **Após limpeza:** ~790 registros (remoção de outliers fisiológicos, registros com idade > 54 anos e ocorrências excessivas de medições repetidas)
 
 | Atributo | Descrição | Unidade |
 |---|---|---|
@@ -138,6 +138,87 @@ Hiperparâmetros otimizados via `GridSearchCV` com validação cruzada estratifi
 
 **Métrica principal:** F1-score macro — penaliza modelos que ignoram classes minoritárias.  
 **Métrica de segurança clínica:** recall da classe `high risk` — falsos negativos nessa classe representam o erro mais grave no contexto obstétrico.
+
+## API de Predição
+
+O projeto inclui uma API Flask que treina o modelo em memória ao iniciar e responde predições de risco gestacional.
+
+### Iniciar o servidor
+
+**Local:**
+```bash
+python -m src.api.app
+# Servidor disponível em http://localhost:5000
+```
+
+**Docker:**
+```bash
+docker build -t tech-challenge-api -f Dockerfile.api .
+docker run -p 5000:5000 tech-challenge-api
+```
+
+### Endpoints
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/health` | Status do servidor e modelo |
+| POST | `/predict` | Predição de risco a partir dos sinais vitais |
+
+### Exemplo de requisição
+
+```bash
+curl -X POST http://localhost:5000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Age": 35,
+    "SystolicBP": 130,
+    "DiastolicBP": 90,
+    "BS": 11.0,
+    "BodyTemp": 37.0,
+    "HeartRate": 77
+  }'
+```
+
+```json
+{
+  "risco": "high risk",
+  "nivel": 2,
+  "probabilidades": {
+    "low risk": 0.03,
+    "mid risk": 0.08,
+    "high risk": 0.89
+  }
+}
+```
+
+> `BodyTemp` deve ser informado em **graus Celsius**.
+
+## CLI Interativa
+
+Com a API no ar, rode o formulário em linha de comando:
+
+```bash
+python cli_predict.py
+# URL customizada:
+python cli_predict.py --url http://localhost:5000
+```
+
+A CLI guia o usuário campo a campo, valida os valores e exibe o resultado com indicação visual de risco.
+
+## Testes
+
+```bash
+# Instalar dependências (inclui pytest)
+pip install -r requirements.txt
+
+# Rodar todos os testes
+pytest tests/test_api.py -v
+
+# Ver tabela com predições de todos os perfis de teste
+pytest tests/test_api.py -v -s
+```
+
+Os testes cobrem: endpoint `/health`, predições para perfis clínicos representativos das 3 classes de risco, validação de campos inválidos/ausentes e aceite de form-data além de JSON. Não é necessário ter a API no ar — o cliente de teste do Flask é usado internamente.
 
 ## Autor
 
