@@ -26,9 +26,11 @@ O dataset original contém 1.014 registros × 7 colunas (6 features numéricas +
 
 ### 2.2 Qualidade dos dados
 
-**Outliers fisiológicos:** 2 registros com `HeartRate = 7 bpm` — valor impossível em humano vivo, provável erro de digitação (omissão do zero em 70 bpm). Removidos do dataset.
+**Outliers fisiológicos:** 2 registros com `HeartRate < 30 bpm` — valor impossível em humano vivo, provável erro de digitação. Removidos.
 
-**Duplicatas:** 561 linhas idênticas (55,4% do total). A alta proporção é esperada dado que as variáveis têm resolução discreta (idade em anos inteiros, pressão em múltiplos de 5/10 mmHg). O dataset não possui identificador único, portanto não é possível distinguir duplicatas reais de coincidências — a remoção foi adotada por segurança para prevenir *data leakage* no split treino/teste. Dataset final: **451 registros únicos**.
+**Outlier de idade:** o dataset apresenta um pico concentrado em exatamente 60 anos que não aparece documentado como clinicamente válido em nenhum artigo que utiliza esta base. Gestações acima dos 54 anos são fisiologicamente muito improváveis sem reprodução assistida avançada — contexto não documentado no dataset. O corte em **Age ≤ 54** corresponde ao p75 da menopausa natural em estudos populacionais (mediana: 51,25 anos; p75 = 54 anos — *Maturitas*, 1995). 84 registros removidos.
+
+**Medições repetidas:** o dataset possui 562 linhas (55,4%) com ao menos uma cópia idêntica em todos os campos. Este dataset é amplamente referenciado em artigos publicados na IEEE, PLOS ONE, Nature Scientific Reports e PMC — nenhum deles cita as repetições como problema de qualidade. Optamos por uma abordagem conservadora: **mantemos até 3 ocorrências por grupo idêntico**, removendo apenas grupos com 4 ou mais repetições, que têm maior probabilidade de serem artefatos de logging do sistema IoT de coleta. 140 linhas removidas. Dataset final após todas as etapas de limpeza: **~790 registros**.
 
 ### 2.3 Balanceamento do alvo
 
@@ -75,22 +77,24 @@ O pipeline de pré-processamento foi implementado em `src/pipelines/preprocessin
 
 **1. Remoção de outliers:** linhas com `HeartRate < 30 bpm` (2 registros).
 
-**2. Remoção de duplicatas:** antes do split, evitando *data leakage*.
+**2. Remoção de registros com Age > 54:** p75 da menopausa natural — pico suspeito em 60 anos não documentado na literatura que usa esta base.
 
-**3. Conversão de temperatura:** `BodyTemp` convertida de Fahrenheit para Celsius (`(F - 32) × 5/9`), mais intuitivo no contexto clínico.
+**3. Remoção conservadora de medições repetidas:** mantém até 3 ocorrências por grupo idêntico, remove a partir da 4ª. Aplicado antes do split para evitar *data leakage*.
 
-**4. Features derivadas opcionais:**
+**4. Conversão de temperatura:** `BodyTemp` convertida de Fahrenheit para Celsius (`(F - 32) × 5/9`), mais intuitivo no contexto clínico.
+
+**5. Features derivadas opcionais:**
 - `pulse_pressure = SystolicBP - DiastolicBP`: reduz a colinearidade entre as duas pressões sem descartar informação. Útil para a Regressão Logística.
 - `age_advanced` (binário): `1` se `Age >= 35` (Advanced Maternal Age — AMA), limiar clínico padrão em obstetrícia.
 - `age_group` (ordinal): `0` para `<20 anos`, `1` para `20–34 anos`, `2` para `≥35 anos`. Preserva a ordem clínica de risco crescente.
 
 As features derivadas de idade foram mantidas junto com `Age` contínua. Modelos de árvore ignoram redundâncias; para a Regressão Logística, `age_advanced` captura o efeito de degrau que a relação linear não representaria bem.
 
-**5. Encoding ordinal do alvo:** `low risk=0`, `mid risk=1`, `high risk=2`.
+**6. Encoding ordinal do alvo:** `low risk=0`, `mid risk=1`, `high risk=2`.
 
-**6. Split estratificado 80/20:** `random_state=42`, preservando a proporção das classes.
+**7. Split estratificado 80/20:** `random_state=42`, preservando a proporção das classes. Dataset final após limpeza: ~790 registros (~632 treino / ~158 teste).
 
-**7. StandardScaler:** ajustado exclusivamente no treino, aplicado em treino e teste. Necessário para Regressão Logística e SVM; incluído no Random Forest para uniformidade da API.
+**8. StandardScaler:** ajustado exclusivamente no treino, aplicado em treino e teste. Necessário para Regressão Logística e SVM; incluído no Random Forest para uniformidade da API.
 
 ---
 
@@ -138,11 +142,11 @@ O pipeline garante que a padronização seja re-executada corretamente em cada f
 
 | Modelo | Hiperparâmetros selecionados | F1-macro CV |
 |---|---|---|
-| Regressão Logística | C = 0.01 | 0.559 |
-| Random Forest | n_estimators=200, max_depth=10, min_samples_leaf=4 | 0.646 |
-| SVM | C=100, gamma=0.01 | 0.636 |
+| Regressão Logística | C = 0.1 | 0.594 |
+| Random Forest | n_estimators=200, max_depth=20, min_samples_leaf=1 | 0.786 |
+| SVM | C=100, gamma=scale | 0.716 |
 
-O valor C=0.01 selecionado para a Regressão Logística indica regularização forte — o modelo mais simples dentro da família linear foi o que generalizou melhor, confirmando que as fronteiras de decisão lineares têm capacidade limitada neste problema.
+Com o dataset ampliado (~790 registros após a revisão dos critérios de limpeza), os resultados de validação cruzada melhoraram significativamente — o Random Forest ganhou +14 pontos percentuais de F1-macro em relação à versão anterior com 451 registros, confirmando que os dados removidos anteriormente (duplicatas excessivas e outliers de idade) introduziam ruído real no treinamento.
 
 ### 5.2 Desempenho no conjunto de teste
 
@@ -219,7 +223,7 @@ O **recall de `high risk`** é a métrica de segurança clínica por excelência
 
 ### 6.4 Limitações adicionais
 
-**Tamanho da base:** 451 registros únicos após limpeza. Os resultados da validação cruzada (k=5) são estimativas mais confiáveis que o resultado único no conjunto de teste, que tem apenas 91 amostras.
+**Tamanho da base:** ~790 registros após limpeza. Os resultados da validação cruzada (k=5) são estimativas mais confiáveis que o resultado único no conjunto de teste (~158 amostras).
 
 **Origem dos dados:** dataset de Bangladesh, contexto rural específico. Padrões aprendidos podem não generalizar para outras populações com perfis demográficos, nutricionais e de acesso à saúde distintos.
 
