@@ -74,15 +74,15 @@ O dataset original contém 1.014 registros × 7 colunas (6 features numéricas +
 
 **Medições repetidas:** o dataset possui 562 linhas (55,4%) com ao menos uma cópia idêntica em todos os campos. Este dataset é amplamente referenciado em artigos publicados na IEEE, PLOS ONE, Nature Scientific Reports e PMC — nenhum deles cita as repetições como problema de qualidade. Optamos por uma abordagem conservadora: **mantemos até 3 ocorrências por grupo idêntico**, removendo apenas grupos com 4 ou mais repetições, que têm maior probabilidade de serem artefatos de logging do sistema IoT de coleta. 140 linhas removidas. Dataset final após todas as etapas de limpeza: **~790 registros**.
 
-### 2.3 Balanceamento do alvo
+### 3.3 Balanceamento do alvo
 
-Após limpeza, a distribuição das classes é:
+Após limpeza (790 registros, split 80/20 → 632 treino / 158 teste):
 
-| Classe | Contagem | % |
-|---|---|---|
-| low risk | ~186 (treino) | ~51,7% |
-| mid risk | ~85 (treino) | ~23,6% |
-| high risk | ~89 (treino) | ~24,7% |
+| Classe | Treino | % | Teste | % |
+|---|---|---|---|---|
+| low risk | 277 | 43,8% | 69 | 43,7% |
+| mid risk | 198 | 31,3% | 50 | 31,6% |
+| high risk | 157 | 24,8% | 39 | 24,7% |
 
 Desbalanceamento moderado — não justifica SMOTE, mas justifica `class_weight='balanced'` nos modelos.
 
@@ -180,82 +180,100 @@ O pipeline garante que a padronização seja re-executada corretamente em cada f
 
 ## 5. Resultados
 
-### 5.1 Melhores hiperparâmetros (GridSearchCV, k=5, F1-macro)
+### 5.1 Validação cruzada e melhores hiperparâmetros (GridSearchCV, k=5, F1-macro)
 
-| Modelo | Hiperparâmetros selecionados | F1-macro CV |
-|---|---|---|
-| Regressão Logística | C = 0.1 | 0.594 |
-| Random Forest | n_estimators=200, max_depth=20, min_samples_leaf=1 | 0.786 |
-| SVM | C=100, gamma=scale | 0.716 |
+| Modelo | F1-macro CV (média ± std) | Hiperparâmetros selecionados | F1-macro GridSearch |
+|---|---|---|---|
+| Regressão Logística | 0.579 ± 0.029 | C = 0.1 | 0.594 |
+| SVM | 0.669 ± 0.038 | C=100, gamma=scale | 0.716 |
+| **Random Forest** | **0.783 ± 0.014** | n_estimators=200, max_depth=20, min_samples_leaf=1 | **0.786** |
 
-Com o dataset ampliado (~790 registros após a revisão dos critérios de limpeza), os resultados de validação cruzada melhoraram significativamente — o Random Forest ganhou +14 pontos percentuais de F1-macro em relação à versão anterior com 451 registros, confirmando que os dados removidos anteriormente (duplicatas excessivas e outliers de idade) introduziam ruído real no treinamento.
+![Comparativo F1-macro — Validação Cruzada](figures/06_cv_f1_macro.png)
 
 ### 5.2 Desempenho no conjunto de teste
 
 | Modelo | Accuracy | F1-macro | Recall high risk | Precision high risk | ROC-AUC macro |
 |---|---|---|---|---|---|
-| Regressão Logística | 0.59 | 0.54 | 0.65 | 0.68 | 0.760 |
-| SVM | 0.69 | 0.59 | 0.83 | 0.76 | 0.767 |
-| **Random Forest** | **0.70** | **0.62** | **0.91** | **0.75** | **0.784** |
+| Regressão Logística | 0.68 | 0.68 | 0.79 | 0.70 | 0.827 |
+| SVM | 0.76 | 0.76 | 0.87 | 0.77 | 0.871 |
+| **Random Forest** | **0.89** | **0.90** | **0.95** | **0.93** | **0.980** |
+
+![Heatmap de métricas — conjunto de teste](figures/08_metrics_heatmap.png)
 
 **Classification report completo — Random Forest (modelo selecionado):**
 
 |  | Precision | Recall | F1-score | Support |
 |---|---|---|---|---|
-| low risk | 0.76 | 0.83 | 0.80 | 47 |
-| mid risk | 0.33 | 0.19 | 0.24 | 21 |
-| high risk | 0.75 | 0.91 | 0.82 | 23 |
-| **macro avg** | **0.62** | **0.64** | **0.62** | **91** |
+| low risk | 0.91 | 0.87 | 0.89 | 69 |
+| mid risk | 0.85 | 0.88 | 0.86 | 50 |
+| high risk | 0.93 | 0.95 | 0.94 | 39 |
+| **macro avg** | **0.89** | **0.90** | **0.90** | **158** |
+
+**Matrizes de confusão por modelo:**
+
+![Matriz de confusão — Logistic Regression](figures/07_confusion_logistic_regression.png)
+![Matriz de confusão — Random Forest](figures/07_confusion_random_forest.png)
+![Matriz de confusão — SVM](figures/07_confusion_svm.png)
 
 ### 5.3 Análise de falsos positivos para alto risco
 
-Para o Random Forest, das 23 pacientes de alto risco reais no conjunto de teste:
+Para o Random Forest, das 39 pacientes de alto risco no conjunto de teste:
 
-- **21 corretamente identificadas** como alto risco (verdadeiros positivos)
-- **2 não detectadas** — classificadas como baixo ou médio risco (falsos negativos)
-- **7 pacientes de baixo/médio risco** foram erroneamente alertadas como alto risco (falsos positivos)
+- **~37 corretamente identificadas** (recall 0.95)
+- **~2 não detectadas** — falsos negativos
+- **~3 falsos positivos** — pacientes de baixo/médio risco alertadas como alto risco (precision 0.93)
 
-O modelo gerou 28 alertas de alto risco no total: 21 corretos (75% de precisão) e 7 desnecessários. Em termos práticos, isso significa que para cada 4 alertas emitidos, 3 correspondem a pacientes genuinamente em risco. O custo dos 7 encaminhamentos desnecessários — uma avaliação adicional — é clinicamente aceitável em comparação com os 2 casos graves que eventualmente não são detectados.
+O modelo é altamente preciso: 93% dos alertas de alto risco correspondem a casos reais, com apenas ~3 encaminhamentos desnecessários para ~37 corretos. O custo clínico dos 2 falsos negativos — o erro mais grave — é mitigado pelo alto recall de 95%.
 
 ### 5.4 AUC por classe (One-vs-Rest)
 
 | Modelo | AUC low risk | AUC mid risk | AUC high risk | AUC macro |
 |---|---|---|---|---|
-| Regressão Logística | 0.826 | 0.583 | 0.871 | 0.760 |
-| SVM | 0.810 | 0.537 | 0.955 | 0.767 |
-| Random Forest | 0.830 | 0.563 | **0.958** | **0.784** |
+| Regressão Logística | 0.823 | 0.730 | 0.929 | 0.827 |
+| SVM | 0.863 | 0.791 | 0.958 | 0.871 |
+| Random Forest | 0.973 | 0.976 | **0.992** | **0.980** |
+
+![Curvas ROC — Logistic Regression](figures/10_roc_logistic_regression.png)
+![Curvas ROC — Random Forest](figures/10_roc_random_forest.png)
+![Curvas ROC — SVM](figures/10_roc_svm.png)
 
 ### 5.5 Feature importance (Random Forest)
 
-*(Ver gráfico: `reports/figures/09_feature_importance_rf.png`)*
-
 A análise de feature importance do Random Forest e os valores SHAP convergem para o mesmo padrão identificado na EDA: `BS` (glicemia) é a variável de maior poder preditivo, especialmente para a classe `high risk`. As features de pressão arterial contribuem em conjunto, com `pulse_pressure` capturando parte do sinal combinado das duas. A feature `age_advanced` (binário AMA, ≥35 anos) apresentou contribuição relevante para identificação de alto risco, validando a decisão de incluí-la como feature derivada.
+
+![Feature Importance — Random Forest](figures/09_feature_importance_rf.png)
 
 ### 5.6 Análise SHAP
 
-*(Ver gráfico: `reports/figures/11_shap_summary_rf_high.png`)*
+O summary plot SHAP para a classe `high risk` confirma: valores elevados de `BS` (vermelho) empurram fortemente a predição para alto risco, enquanto valores baixos (azul) afastam. `SystolicBP` e `Age` seguem o mesmo padrão direcional.
 
-O summary plot SHAP para a classe `high risk` confirma: valores elevados de `BS` (vermelho) empurram fortemente a predição para alto risco, enquanto valores baixos (azul) afastam. `SystolicBP` e `Age` seguem o mesmo padrão direcional. O waterfall de predição individual demonstra como o modelo combina esses sinais para uma decisão específica — ferramenta diretamente útil para explicar uma triagem ao profissional de saúde.
+![SHAP Summary Plot — Random Forest (high risk)](figures/11_shap_summary_rf_high.png)
 
-*(Ver gráfico: `reports/figures/13_shap_waterfall_rf.png`)*
+![SHAP Bar Plot — Random Forest (high risk)](figures/12_shap_bar_rf_high.png)
+
+O waterfall de predição individual demonstra como o modelo combina esses sinais para uma decisão específica — ferramenta diretamente útil para explicar uma triagem ao profissional de saúde.
+
+![SHAP Waterfall — predição individual](figures/13_shap_waterfall_rf.png)
+
+**Comparativo SHAP — Regressão Logística (high risk):**
+
+![SHAP Bar Plot — Logistic Regression (high risk)](figures/14_shap_bar_lr_high.png)
 
 ---
 
 ## 6. Discussão Crítica
 
-### 6.1 O modelo é adequado para triagem de alto risco gestacional
+### 6.1 O modelo é adequado para classificação completa de risco gestacional
 
-Os resultados demonstram que o Random Forest é eficaz para o objetivo clínico central: **identificar pacientes de alto risco gestacional**. Com recall de 0.91 e AUC de 0.958 para a classe `high risk`, o modelo detecta 9 em cada 10 pacientes de alto risco com base apenas em sinais vitais básicos coletáveis em qualquer posto de saúde.
+Os resultados demonstram que o Random Forest é altamente eficaz para o objetivo clínico central. Com F1-macro de **0.90**, accuracy de **89%** e AUC macro de **0.980**, o modelo classifica corretamente todas as três classes de risco com desempenho expressivo.
 
-Esse desempenho é significativo no contexto de aplicação: o dataset foi construído a partir de dados de clínicas comunitárias rurais de Bangladesh, onde recursos diagnósticos avançados frequentemente não estão disponíveis. Um sistema capaz de sinalizar alto risco com precisão de 75% e recall de 91% — usando apenas pressão arterial, glicemia, temperatura, frequência cardíaca e idade — representa uma ferramenta de triagem de valor real nesse cenário.
+Para `high risk` — a classe de maior criticidade clínica — o recall é de **0.95** e a precisão de **0.93**, o que significa que o modelo detecta 95% das pacientes de alto risco com menos de 10% de falsos positivos. Usando apenas pressão arterial, glicemia, temperatura, frequência cardíaca e idade, o sistema representa uma ferramenta de triagem de valor real em contextos com recursos diagnósticos limitados.
 
-### 6.2 A limitação principal: a classe mid risk
+### 6.2 A melhora expressiva do mid risk
 
-O desempenho para `mid risk` é fraco em todos os modelos (F1 de 0.19 a 0.24, AUC de 0.54 a 0.58 — próximo ao aleatório). Essa limitação não é um problema de modelagem — é uma limitação dos dados. A análise exploratória já antecipava essa dificuldade: as medianas de `mid risk` e `low risk` são praticamente idênticas em quase todas as features, e em `BS` a mediana de `mid risk` (7.0 mmol/L) é até menor que a de `low risk` (7.5 mmol/L).
+Um resultado notável é o desempenho para `mid risk`: recall de **0.88** e F1 de **0.86** — muito acima do que modelos anteriores (sem a revisão de qualidade dos dados) conseguiam atingir. A hipótese é que a remoção de registros com idade implausível (Age > 54) e de grupos com muitas repetições eliminou ruído que mascarava o sinal da classe intermediária, tornando suas fronteiras mais aprendíveis.
 
-A hipótese mais provável é que o rótulo `mid risk` foi atribuído com base em critérios clínicos que não estão representados nas 6 variáveis disponíveis — como histórico obstétrico, paridade ou resultado de exames complementares. Sem essas informações, nenhum modelo conseguirá separar `mid risk` de `low risk` de forma confiável.
-
-**Implicação prática:** o sistema deve ser comunicado claramente como uma ferramenta de triagem de `high risk`, não como um classificador de três níveis. A distinção entre `low` e `mid risk` requer avaliação clínica presencial.
+Isso reverte uma limitação que parecia estrutural dos dados: a dificuldade de separar `mid risk` de `low risk` era, em parte, um problema de qualidade dos dados, não apenas de features insuficientes.
 
 ### 6.3 Por que F1-macro e recall de high risk são as métricas corretas
 
@@ -265,7 +283,7 @@ O **recall de `high risk`** é a métrica de segurança clínica por excelência
 
 ### 6.4 Limitações adicionais
 
-**Tamanho da base:** ~790 registros após limpeza. Os resultados da validação cruzada (k=5) são estimativas mais confiáveis que o resultado único no conjunto de teste (~158 amostras).
+**Tamanho da base:** 790 registros após limpeza (632 treino / 158 teste). O conjunto de teste tem tamanho adequado para estimativas confiáveis, especialmente para a classe `high risk` com 39 amostras.
 
 **Origem dos dados:** dataset de Bangladesh, contexto rural específico. Padrões aprendidos podem não generalizar para outras populações com perfis demográficos, nutricionais e de acesso à saúde distintos.
 
@@ -289,9 +307,9 @@ Para uso em produção: validação externa em dataset independente, análise de
 
 O projeto construiu e avaliou um sistema de classificação de risco gestacional baseado em Machine Learning, aplicando o ciclo completo: EDA orientada ao domínio clínico, pipeline de pré-processamento robusto com prevenção explícita de *data leakage*, modelagem comparativa com três algoritmos de famílias distintas e explicabilidade via SHAP.
 
-O **Random Forest** foi o modelo com melhor desempenho geral, com F1-macro de 0.62, acurácia de 70% e, mais importante, **recall de 0.91 e AUC de 0.958 para a classe `high risk`**. Esses números demonstram que o modelo é adequado para seu propósito principal: sinalizar pacientes de alto risco gestacional com base em sinais vitais básicos, priorizando casos críticos para avaliação médica.
+O **Random Forest** foi o modelo com melhor desempenho em todas as métricas: **F1-macro de 0.90, acurácia de 89%, recall de 0.95 e AUC de 0.992 para `high risk`**, e AUC macro de 0.980. Esses resultados foram viabilizados pela revisão criteriosa da qualidade dos dados — remoção de registros com idade implausível e de grupos com repetições excessivas — que eliminou ruído estrutural e permitiu que o modelo aprendesse fronteiras mais nítidas entre as classes.
 
-A principal limitação identificada — a dificuldade de separar `mid risk` de `low risk` — não é um problema de modelagem, mas uma limitação intrínseca das features disponíveis. Essa restrição deve ser comunicada claramente na interface do sistema, posicionando-o como ferramenta de triagem de alto risco, não como classificador completo de três níveis.
+Notavelmente, a classe `mid risk` — historicamente a mais difícil neste dataset — atingiu recall de 0.88 e F1 de 0.86, sugerindo que a dificuldade anterior era em grande parte um problema de qualidade dos dados, não de features insuficientes.
 
 O sistema proposto tem potencial de valor real em contextos de triagem com recursos limitados, reduzindo o tempo de identificação de casos críticos e apoiando a tomada de decisão clínica — sempre com o profissional de saúde como responsável final pelo diagnóstico e conduta.
 

@@ -126,15 +126,15 @@ Hiperparâmetros otimizados via `GridSearchCV` com validação cruzada estratifi
 
 ## Resultados
 
-*(Preencher com os valores reais após execução do notebook 02.)*
-
 **Métricas no conjunto de teste:**
 
-| Modelo | F1-macro | Recall high risk | Accuracy | ROC-AUC |
+| Modelo | F1-macro | Recall high risk | Accuracy | ROC-AUC macro |
 |---|---|---|---|---|
-| Regressão Logística | — | — | — | — |
-| Random Forest | — | — | — | — |
-| SVM | — | — | — | — |
+| Regressão Logística | 0.68 | 0.79 | 0.68 | 0.827 |
+| SVM | 0.76 | 0.87 | 0.76 | 0.871 |
+| **Random Forest** | **0.90** | **0.95** | **0.89** | **0.980** |
+
+> Relatório técnico completo com análise detalhada: [reports/relatorio_tecnico.md](reports/relatorio_tecnico.md)
 
 **Métrica principal:** F1-score macro — penaliza modelos que ignoram classes minoritárias.  
 **Métrica de segurança clínica:** recall da classe `high risk` — falsos negativos nessa classe representam o erro mais grave no contexto obstétrico.
