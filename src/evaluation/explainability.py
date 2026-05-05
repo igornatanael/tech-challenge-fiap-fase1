@@ -165,8 +165,8 @@ def compute_shap_values(
     X_ex_scaled = _transform_X(pipeline, X_explain)
 
     if tipo_modelo == "random_forest":
-        explainer = shap.TreeExplainer(modelo, data=X_bg_scaled)
-        shap_values = explainer.shap_values(X_ex_scaled)
+        explainer = shap.TreeExplainer(modelo)
+        shap_values = explainer.shap_values(X_ex_scaled, check_additivity=False)
 
     elif tipo_modelo == "logistic_regression":
         explainer = shap.LinearExplainer(modelo, X_bg_scaled)
