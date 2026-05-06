@@ -3,6 +3,8 @@
 
 Projeto de conclusão da Fase 1 da pós-graduação **IA para Devs** da FIAP. Solução baseada em Machine Learning para classificação do nível de risco gestacional (baixo, médio, alto) a partir de sinais vitais e dados clínicos básicos, como suporte à triagem precoce em saúde materna.
 
+> 📄 **[Relatório técnico completo → reports/relatorio_tecnico.md](reports/relatorio_tecnico.md)**
+
 ---
 
 ## Sumário
